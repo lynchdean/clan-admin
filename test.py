@@ -1,5 +1,5 @@
 import asyncio
-from cogs.wars import WarsCog
+from cogs.cwl import CWLCog, cwl_season
 from api import ClashKingAPI, ClashTag
 
 
@@ -7,4 +7,4 @@ from api import ClashKingAPI, ClashTag
 
 # Test the function
 if __name__ == "__main__":
-    cwl_review("#9PR9JG92", 1)
+    asyncio.run(cwl_season(clan_tag="#2Y8UJ0VPU", season="2026-05"))

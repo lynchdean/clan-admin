@@ -1,4 +1,6 @@
 from typing import Optional, Dict, Any
+
+from models import season
 from .base import BaseAPI, ClashTag
 
 
@@ -80,3 +82,15 @@ class ClashKingAPI(BaseAPI):
             ["player", f"%23{tag.lstrip('#').upper()}", "warhits"],
             params=params
         )
+
+    async def get_cwl_season(self, clan_tag: str, season: str):
+        """
+        Get CWL season information for specific season YYYY-MM
+        :arg season: CWL season YYYY-MM
+        :return: Dictionary containing CWL season information
+        """
+        return await self._make_request([
+            "cwl",
+            ClashTag.format(clan_tag),
+            season
+        ])

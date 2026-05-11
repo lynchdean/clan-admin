@@ -6,6 +6,8 @@ import logging
 
 from api import ClashKingAPI, ClashTag
 from models import Attack
+from models.season import Season
+
 
 def get_cwl_timestamps(num_months):
     now = datetime.now()
@@ -16,7 +18,8 @@ def get_cwl_timestamps(num_months):
         end_dt = current.replace(day=10)
         timestamps.append((int(start_dt.timestamp()),
                            int(end_dt.timestamp()),
-                           f"{start_dt.month}-{start_dt.year}"))
+                           start_dt.month,
+                           start_dt.year))
         current -= relativedelta(months=1)
     return timestamps
 
@@ -24,35 +27,34 @@ async def cwl_review(player_tag, num_cwls=1):
     """Review previous CWLs for a player"""
     timestamps = get_cwl_timestamps(num_cwls)
 
-    seasons = {}
-    for start, end, season in timestamps:
-        print(f"Season {season}")
+    seasons = []
+    for start, end, month, year in timestamps:
+        print(f"Season {month}-{year}")
 
         api = ClashKingAPI()
         war_data = await api.get_player_warhits(
-            tag=player_tag,
+            tag=ClashTag.format(player_tag),
             limit=50,
             timestamp_start=start,
             timestamp_end=end
         )
 
-        wars = []
+        attacks = []
         if war_data and war_data.get('items'):
             for item in war_data['items']:
                 attack = Attack.from_api(item)
-                wars.append(attack)
+                attacks.append(attack)
 
-
-        seasons[season] = wars
+        season = Season.from_data(year, month, attacks)
+        seasons.append(season)
 
     for s in seasons:
-        print(f"Season {s}")
-        for attack in seasons[s]:
-            print(attack)
+        print(s)
+        print(f"- Avg stars: {round(s.avg_stars(), 1)}")
+        print(f"- Avg destruction: {round(s.avg_destruction(), 1)}")
 
 class WarsCog(commands.Cog):
     """War-related commands"""
-
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger(__name__)
