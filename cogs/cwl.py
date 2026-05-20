@@ -4,42 +4,89 @@ import logging
 
 from api import ClashKingAPI, ClashTag
 
+async def get_all_seasons(clan_tag:str, seasons:int) -> list[dict]:
+    api = ClashKingAPI()
+    tag_clean = ClashTag.format(clan_tag)
+    seasons_list = await api.get_season_list(seasons)
+
+    result = []
+    for season in seasons_list:
+        result.append(await api.get_cwl_season(tag_clean, season))
+    return result
+
+async def get_cwl_data(clan_tag: str, seasons: int) -> dict:
+    seasons_data = await get_all_seasons(clan_tag, seasons)  # Pass original
+
+    members = {}
+    for season_data in seasons_data:
+        season = season_data['season']
+        total_rounds = len(season_data['rounds'])
+
+        # Step 1: Initialize/update members dict from clan data for this season
+        for clan in season_data['clans']:
+            if clan['tag'] == clan_tag:  # Compare with original clan_tag, not tag_clean
+                for member in clan['members']:
+                    member_tag = member['tag']
+                    if member_tag not in members:
+                        members[member_tag] = member.copy()
+                        members[member_tag]['cwl_results'] = {}
+                    members[member_tag]['cwl_results'][season] = [None] * total_rounds
+                break
+
+        # Step 2: Process each round and update member stats
+        for round_index, round_data in enumerate(season_data['rounds']):
+            for war in round_data['warTags']:
+                if war['clan']['tag'] == clan_tag:  # Use original clan_tag here too
+                    war_side = war['clan']
+                elif war['opponent']['tag'] == clan_tag:  # And here
+                    war_side = war['opponent']
+                else:
+                    continue
+
+                for member in war_side['members']:
+                    if member['tag'] in members:
+                        result = member['attacks'][0]['stars'] if member.get('attacks') else -1
+                        members[member['tag']]['cwl_results'][season][round_index] = result
+
+    return members
+
 async def cwl_season(clan_tag: str, season: str):
     api = ClashKingAPI()
     tag_clean = ClashTag.format(clan_tag)
     data = await api.get_cwl_season(tag_clean, season)
 
+    total_rounds = len(data['rounds'])
 
-    # TODO reduce cognitive complexity of below code by breaking down into methods
+    # Step 1: Initialize members dict from clan data
     members = {}
     for clan in data['clans']:
         if clan['tag'] == clan_tag:
             for member in clan['members']:
-                member['attacks'] = 0
-                member['missed_attacks'] = 0
-                member['stars'] = 0
-                member['total_destruction'] = 0
+                member['cwl_results'] = {season: [None] * total_rounds}
                 members[member['tag']] = member
             break
 
-    for round in data['rounds']:
-        for war in round['warTags']:
-            if war['clan']['tag'] == clan_tag or war['opponent']['tag'] == clan_tag:
-                war_focus = 'clan' if war['clan']['tag'] == clan_tag else 'opponent'
-                war_members = war[war_focus]['members']
+    # Step 2: Process each round and update member stats
+    for round_index, round_data in enumerate(data['rounds']):
+        for war in round_data['warTags']:
+            # Determine which team we're tracking
+            if war['clan']['tag'] == clan_tag:
+                war_side = war['clan']
+            elif war['opponent']['tag'] == clan_tag:
+                war_side = war['opponent']
+            else:
+                continue
 
-                for member in war_members:
-                    if member.get('attacks'):
-                        members[member['tag']]['attacks'] += 1
-                        members[member['tag']]['stars'] += member['attacks'][0]['stars']
-                        members[member['tag']]['total_destruction'] += member['attacks'][0]['destructionPercentage']
-                        # print(f"War: {war['tag']} - Member: {member['name']} ({member['tag']}) Attacks: {member['attacks']}")
-                    else:
-                        members[member['tag']]['missed_attacks'] += 1
-                        # print(f"War: {war['tag']} - Member: {member['name']} MISSED")
+            # Update stats for each member in this war
+            for member in war_side['members']:
+                if member['tag'] in members:
+                    result = member['attacks'][0]['stars'] if member.get('attacks') else -1
+                    members[member['tag']]['cwl_results'][season][round_index] = result
 
-    for member in members:
-        print(members[member])
+    for x in members:
+        print(members[x])
+
+    return members
 
 
 class CWLCog(commands.Cog):

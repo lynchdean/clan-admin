@@ -83,6 +83,14 @@ class ClashKingAPI(BaseAPI):
             params=params
         )
 
+    async def get_season_list(self, seasons: int) -> list[str]:
+        """
+        :param seasons: Number of seasons to return
+        :return: List of seasons in the format "YYYY-MM"
+        """
+        arg = f"seasons?last={seasons}"
+        return await self._make_request(["list", arg])
+
     async def get_cwl_season(self, clan_tag: str, season: str):
         """
         Get CWL season information for specific season YYYY-MM
